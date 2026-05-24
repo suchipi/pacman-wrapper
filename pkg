@@ -1,0 +1,132 @@
+#!/usr/bin/env bash
+# apt/pkg-like wrapper around pacman
+
+set -e
+
+usage() {
+  cat <<'EOF'
+Usage: pkg <command> [args...]
+
+Commands:
+  install <pkg>...    Install packages                 (pacman -S)
+  reinstall <pkg>...  Reinstall packages               (pacman -S)
+  add <file>...       Install from a local package     (pacman -U)
+  fetch <pkg>...      Download but don't install       (pacman -Sw)
+  uninstall <pkg>...  Remove packages and unused deps  (pacman -Rs)
+  remove <pkg>...     Alias for uninstall
+  delete <pkg>...     Alias for uninstall
+  purge <pkg>...      Remove packages, deps, config    (pacman -Rns)
+  update              Refresh package database         (pacman -Sy)
+  upgrade             Upgrade all installed packages   (pacman -Syu)
+  search <query>      Search remote packages           (pacman -Ss)
+  show <pkg>          Show info about a package        (pacman -Si / -Qi)
+  info <pkg>          Alias for show
+  list                List installed packages          (pacman -Q)
+  list-explicit       List explicitly-installed pkgs   (pacman -Qe)
+  files <pkg>         List files owned by a package    (pacman -Ql / -Fl)
+  owns <path>         Find which package owns a file   (pacman -Qo)
+  provides <file>     Find package providing a file    (pacman -F; needs `pacman -Fy` first)
+  orphans             List unused dependencies         (pacman -Qdt)
+  version [<pkg>...]  List packages with updates       (pacman -Qu)
+  check [<pkg>...]    Verify installed package files   (pacman -Qk)
+  autoremove          Remove unused dependencies       (pacman -Rns $(pacman -Qdtq))
+  clean               Remove cached packages           (pacman -Sc)
+  help                Show this help
+EOF
+}
+
+if [ $# -eq 0 ]; then
+  usage
+  exit 1
+fi
+
+COMMAND=$1
+shift
+
+case "$COMMAND" in
+  install|reinstall)
+    exec pacman -S "$@"
+    ;;
+  add)
+    exec pacman -U "$@"
+    ;;
+  fetch)
+    exec pacman -Sw "$@"
+    ;;
+  uninstall|remove|delete)
+    exec pacman -Rs "$@"
+    ;;
+  purge)
+    exec pacman -Rns "$@"
+    ;;
+  update)
+    exec pacman -Sy "$@"
+    ;;
+  upgrade|dist-upgrade|full-upgrade)
+    exec pacman -Syu "$@"
+    ;;
+  search)
+    exec pacman -Ss "$@"
+    ;;
+  show|info)
+    if QI_OUTPUT=$(pacman -Qi "$@" 2>/dev/null); then
+      printf '%s\n' "$QI_OUTPUT"
+    else
+      exec pacman -Si "$@"
+    fi
+    ;;
+  list|list-installed)
+    exec pacman -Q "$@"
+    ;;
+  list-explicit)
+    exec pacman -Qe "$@"
+    ;;
+  files)
+    if QL_OUTPUT=$(pacman -Ql "$@" 2>/dev/null); then
+      printf '%s\n' "$QL_OUTPUT"
+    else
+      pacman -Fl "$@" || {
+        echo "pkg: lookup failed. If the files database is missing, run: pacman -Fy" >&2
+        exit 1
+      }
+    fi
+    ;;
+  owns|which)
+    exec pacman -Qo "$@"
+    ;;
+  provides)
+    pacman -F "$@" || {
+      echo "pkg: lookup failed. If the files database is missing, run: pacman -Fy" >&2
+      exit 1
+    }
+    ;;
+  orphans)
+    exec pacman -Qdt "$@"
+    ;;
+  version)
+    exec pacman -Qu "$@"
+    ;;
+  check)
+    exec pacman -Qk "$@"
+    ;;
+  autoremove)
+    ORPHANS=$(pacman -Qdtq || true)
+    if [ -z "$ORPHANS" ]; then
+            echo "No orphaned packages to remove."
+            exit 0
+    fi
+    exec pacman -Rns $ORPHANS
+    ;;
+  clean)
+    exec pacman -Sc "$@"
+    ;;
+  help|--help|-h)
+    usage
+    ;;
+  *)
+    echo "pkg: unknown command '$COMMAND'" >&2
+    echo >&2
+    usage >&2
+    exit 1
+    ;;
+esac
