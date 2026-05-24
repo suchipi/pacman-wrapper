@@ -70,7 +70,7 @@ case "$COMMAND" in
     ;;
   show|info)
     if QI_OUTPUT=$(pacman -Qi "$@" 2>/dev/null); then
-      printf '%s\n' "$QI_OUTPUT"
+      echo "$QI_OUTPUT"
     else
       exec pacman -Si "$@"
     fi
@@ -83,7 +83,7 @@ case "$COMMAND" in
     ;;
   files)
     if QL_OUTPUT=$(pacman -Ql "$@" 2>/dev/null); then
-      printf '%s\n' "$QL_OUTPUT"
+      echo "$QL_OUTPUT"
     else
       pacman -Fl "$@" || {
         echo "pkg: lookup failed. If the files database is missing, run: pacman -Fy" >&2
